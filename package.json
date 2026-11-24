@@ -1,0 +1,21 @@
+{
+  "name": "gemini-hub-telegram-bot",
+  "version": "1.0.0",
+  "description": "Gemini Hub — Bot oficial no Telegram para venda automatizada de contas digitais (Gemini Pro, Gemini Ultra e mais) com carteira Pix.",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node --no-warnings src/index.js",
+    "dev": "node --no-warnings --watch src/index.js",
+    "test": "node --no-warnings --test tests/*.test.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "grammy": "^1.36.1",
+    "pg": "^8.23.1",
+    "qrcode": "^1.5.4"
+  },
+  "engines": {
+    "node": ">=22.5.0"
+  }
+}
