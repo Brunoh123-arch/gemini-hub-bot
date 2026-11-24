@@ -13,6 +13,7 @@ import {
   verifyPixPayloadCrc,
 } from '../src/services/pix.js';
 import { generateValidCpfFromSeed } from '../src/services/syncpay.js';
+import { renderAdminDashboardHtml } from '../src/web/adminDashboardHtml.js';
 import * as clientHandlers from '../src/bot/clientHandlers.js';
 import * as adminHandlers from '../src/bot/adminHandlers.js';
 
@@ -158,6 +159,10 @@ test('Alerta de Reposição (Avise-me), Avaliações Verificadas e Backup', asyn
   const report = await repo.generateStoreBackupReport('Gemini Hub');
   assert.match(report, /GEMINI HUB/);
   assert.match(report, /Gemini Ultra/);
+
+  const htmlLogin = renderAdminDashboardHtml({ storeName: 'Gemini Hub', authenticated: false });
+  assert.match(htmlLogin, /Gemini Hub/);
+  assert.match(htmlLogin, /loginForm/);
 
   await db.close();
 });

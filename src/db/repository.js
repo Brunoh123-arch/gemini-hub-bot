@@ -147,6 +147,23 @@ export class StoreRepository {
     return this.db.queryOne('SELECT * FROM users WHERE telegram_id = ?', [Number(telegramId)]);
   }
 
+  async listUsers({ limit = 40, search = '' } = {}) {
+    const q = String(search || '').trim();
+    if (q) {
+      const like = `%${q.toLowerCase()}%`;
+      return this.db.queryAll(
+        `SELECT * FROM users
+         WHERE LOWER(COALESCE(username, '')) LIKE ?
+            OR LOWER(COALESCE(first_name, '')) LIKE ?
+            OR CAST(telegram_id AS TEXT) LIKE ?
+         ORDER BY updated_at DESC
+         LIMIT ?`,
+        [like, like, `%${q}%`, limit]
+      );
+    }
+    return this.db.queryAll('SELECT * FROM users ORDER BY updated_at DESC LIMIT ?', [limit]);
+  }
+
   async listAllUserIds({ excludeBanned = true } = {}) {
     const sql = excludeBanned
       ? 'SELECT telegram_id FROM users WHERE is_banned = 0'
@@ -445,6 +462,25 @@ export class StoreRepository {
     return res.changes;
   }
 
+  async listAvailableStockItems(productId, limit = 100) {
+    return this.db.queryAll(
+      `SELECT id, product_id, credential, created_at
+       FROM stock_items
+       WHERE product_id = ? AND status = 'available'
+       ORDER BY id ASC
+       LIMIT ?`,
+      [Number(productId), limit]
+    );
+  }
+
+  async deleteStockItem(stockItemId) {
+    const res = await this.db.run(
+      "DELETE FROM stock_items WHERE id = ? AND status = 'available'",
+      [Number(stockItemId)]
+    );
+    return res.changes > 0;
+  }
+
   // ==========================================================================
   // PRICING PREVIEW & ATOMIC PURCHASE ENGINE (WITH VIP CASHBACK!)
   // ==========================================================================
@@ -680,6 +716,17 @@ export class StoreRepository {
       Number(userId),
     ]);
     return Number(row?.count || 0);
+  }
+
+  async listRecentOrders(limit = 30) {
+    return this.db.queryAll(
+      `SELECT o.*, u.username, u.first_name
+       FROM orders o
+       LEFT JOIN users u ON u.telegram_id = o.user_id
+       ORDER BY o.id DESC
+       LIMIT ?`,
+      [limit]
+    );
   }
 
   // ==========================================================================
@@ -980,6 +1027,14 @@ export class StoreRepository {
 
   async listCoupons(limit = 20) {
     return this.db.queryAll('SELECT * FROM coupons ORDER BY id DESC LIMIT ?', [limit]);
+  }
+
+  async toggleCouponActive(couponId) {
+    const row = await this.db.queryOne('SELECT * FROM coupons WHERE id = ?', [Number(couponId)]);
+    if (!row) return null;
+    const next = row.is_active ? 0 : 1;
+    await this.db.run('UPDATE coupons SET is_active = ? WHERE id = ?', [next, Number(couponId)]);
+    return this.db.queryOne('SELECT * FROM coupons WHERE id = ?', [Number(couponId)]);
   }
 
   async getCouponByCode(code) {

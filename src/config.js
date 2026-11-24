@@ -40,6 +40,7 @@ export const config = {
 
   botToken: (process.env.BOT_TOKEN || '').trim(),
   adminIds: parseAdminIds(process.env.ADMIN_IDS),
+  adminWebPassword: (process.env.ADMIN_WEB_PASSWORD || '').trim(),
 
   storeName: (process.env.STORE_NAME || 'Gemini Hub').trim(),
   supportUsername: (process.env.SUPPORT_USERNAME || '@SuporteGeminiHub').trim(),

@@ -1,5 +1,6 @@
 import http from 'node:http';
 import { getSyncPayTransactionStatus } from './syncpay.js';
+import { handleWebAdminRequest } from '../web/adminRoutes.js';
 
 function readJsonBody(req, maxBytes = 1024 * 512) {
   return new Promise((resolve, reject) => {
@@ -30,10 +31,12 @@ function readJsonBody(req, maxBytes = 1024 * 512) {
 }
 
 /**
- * Servidor HTTP leve para receber Webhooks da SyncPayments (timeout oficial SyncPay = 5s).
- * Responde 200 imediatamente e processa a entrega de forma assíncrona!
+ * Servidor HTTP unificado:
+ * - GET/HEAD / e /health -> Health Check (Render + UptimeRobot)
+ * - POST /webhooks/syncpay -> Webhook instantâneo SyncPayments (responde <5s)
+ * - GET /admin + /api/admin/* -> Painel Administrativo Web completo
  */
-export function startWebhookServer({ port, repo, baseConfig, onDepositApproved }) {
+export function startWebhookServer({ port, repo, baseConfig, bot = null, onDepositApproved }) {
   const server = http.createServer(async (req, res) => {
     const reqUrl = (req.url || '/').split('?')[0];
 
@@ -42,7 +45,7 @@ export function startWebhookServer({ port, repo, baseConfig, onDepositApproved }
       if (req.method === 'HEAD') {
         res.end();
       } else {
-        res.end(JSON.stringify({ ok: true, service: 'Gemini Hub Webhook Server' }));
+        res.end(JSON.stringify({ ok: true, service: 'Gemini Hub Webhook & Web Admin Server' }));
       }
       return;
     }
@@ -50,7 +53,6 @@ export function startWebhookServer({ port, repo, baseConfig, onDepositApproved }
     if (req.method === 'POST' && reqUrl === '/webhooks/syncpay') {
       const runtime = await repo.getRuntimeSettings(baseConfig);
 
-      // Se o admin configurou SYNCPAY_WEBHOOK_SECRET, valida o Bearer Token do header Authorization
       if (runtime.syncpayWebhookSecret) {
         const authHeader = String(req.headers.authorization || '');
         const expected = `Bearer ${runtime.syncpayWebhookSecret}`;
@@ -70,11 +72,9 @@ export function startWebhookServer({ port, repo, baseConfig, onDepositApproved }
         return;
       }
 
-      // Responde 200 imediatamente para nunca estourar o timeout de 5 segundos da SyncPay
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ received: true }));
 
-      // Processa evento em background
       setImmediate(async () => {
         try {
           const txId = String(
@@ -93,7 +93,6 @@ export function startWebhookServer({ port, repo, baseConfig, onDepositApproved }
 
           let status = String(payload?.status || payload?.data?.status || '').toLowerCase();
 
-          // No contrato cashin.old (payload só com { id }), faz 1 consulta única para confirmar status
           if (!status && runtime.syncpayClientId && runtime.syncpayClientSecret) {
             if (deposit.status_checks_count < 5) {
               await repo.incrementDepositCheckCount(deposit.id);
@@ -121,16 +120,28 @@ export function startWebhookServer({ port, repo, baseConfig, onDepositApproved }
       return;
     }
 
+    const handledByWebAdmin = await handleWebAdminRequest({
+      req,
+      res,
+      reqUrl,
+      readJsonBody,
+      repo,
+      baseConfig,
+      bot,
+      onDepositApproved,
+    });
+    if (handledByWebAdmin) return;
+
     res.writeHead(404, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ error: 'Not found' }));
   });
 
   server.listen(port, '0.0.0.0', () => {
-    console.log(`🌐 Webhook Server SyncPay ativo na porta ${port} (POST /webhooks/syncpay)`);
+    console.log(`🌐 Webhook & Painel Web Admin ativos na porta ${port} (/admin e /webhooks/syncpay)`);
   });
 
   server.on('error', (err) => {
-    console.warn(`⚠️ Não foi possível abrir Webhook Server na porta ${port}: ${err.message}`);
+    console.warn(`⚠️ Não foi possível abrir servidor HTTP na porta ${port}: ${err.message}`);
   });
 
   return server;

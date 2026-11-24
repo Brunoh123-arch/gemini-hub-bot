@@ -90,6 +90,7 @@ async function main() {
     port: config.webhookPort,
     repo,
     baseConfig: config,
+    bot,
     onDepositApproved: async (approvalResult) => {
       await handlePostDepositApprovalNotifications(bot, repo, approvalResult);
     },
