@@ -37,9 +37,13 @@ export function startWebhookServer({ port, repo, baseConfig, onDepositApproved }
   const server = http.createServer(async (req, res) => {
     const reqUrl = (req.url || '/').split('?')[0];
 
-    if (req.method === 'GET' && (reqUrl === '/' || reqUrl === '/health')) {
+    if ((req.method === 'GET' || req.method === 'HEAD') && (reqUrl === '/' || reqUrl === '/health')) {
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ ok: true, service: 'Gemini Hub Webhook Server' }));
+      if (req.method === 'HEAD') {
+        res.end();
+      } else {
+        res.end(JSON.stringify({ ok: true, service: 'Gemini Hub Webhook Server' }));
+      }
       return;
     }
 
